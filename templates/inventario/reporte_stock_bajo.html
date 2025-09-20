@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Reporte - Stock bajo mínimo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 24px; }
+    h1 { margin-bottom: 12px; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #ddd; padding: 8px; }
+    th { text-align: left; }
+    tr:nth-child(even) { background: #f9f9f9; }
+    .critico { color: #b00020; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h1>Stock bajo mínimo</h1>
+  {% if productos %}
+    <table>
+      <thead>
+        <tr>
+          <th>Categoría</th>
+          <th>Código</th>
+          <th>Producto</th>
+          <th>Stock</th>
+          <th>Mínimo</th>
+          <th>Unidad</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in productos %}
+          <tr>
+            <td>{{ p.categoria.nombre }}</td>
+            <td>{{ p.codigo }}</td>
+            <td>{{ p.nombre }}</td>
+            <td class="{% if p.stock <= p.stock_minimo %}critico{% endif %}">{{ p.stock }}</td>
+            <td>{{ p.stock_minimo }}</td>
+            <td>{{ p.unidad }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>No hay productos bajo mínimo. 🎉</p>
+  {% endif %}
+</body>
+</html>
