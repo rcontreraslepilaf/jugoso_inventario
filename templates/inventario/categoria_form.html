@@ -1,0 +1,26 @@
+{% extends "inventario/base.html" %}
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto card p-6">
+  <h1 class="text-xl font-semibold mb-4">{{ titulo }}</h1>
+  <form method="post" class="space-y-4">
+    {% csrf_token %}
+    <div>
+      <label class="block mb-1 text-sm">Nombre</label>
+      <input class="inp" type="text" name="nombre" value="{{ form.nombre.value|default_if_none:'' }}" required>
+      {% if form.nombre.errors %}<div class="text-red-500 text-sm mt-1">{{ form.nombre.errors.0 }}</div>{% endif %}
+    </div>
+    <div>
+      <label class="block mb-1 text-sm">Descripción</label>
+      <textarea class="inp" name="descripcion" rows="3">{{ form.descripcion.value|default_if_none:'' }}</textarea>
+      {% if form.descripcion.errors %}<div class="text-red-500 text-sm mt-1">{{ form.descripcion.errors.0 }}</div>{% endif %}
+    </div>
+
+    <div class="flex gap-2">
+      <button class="btn btn-primary" type="submit">💾 Guardar</button>
+      <a class="btn" href="{% url 'inventario:categoria_list' %}">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

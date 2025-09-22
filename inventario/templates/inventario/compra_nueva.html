@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Nueva Compra | Jugoso</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 24px; }
+    h1 { margin-bottom: 12px; }
+    table { width:100%; border-collapse: collapse; margin-top: 12px; }
+    th, td { border:1px solid #e5e7eb; padding:8px; }
+    th { background:#fafafa; text-align: left; }
+    input, button { padding:8px; }
+    .row { display:flex; gap:8px; margin: 8px 0; }
+    .wide { flex:1; }
+    .total { font-size: 18px; font-weight: 600; margin-top: 12px; }
+    .msg { padding:10px; border-radius:8px; margin-bottom:10px; }
+    .msg-ok { background:#e7f7ec; border:1px solid #bfe8ca; color:#0d7a33; }
+    .msg-err { background:#fdecea; border:1px solid #f5c6cb; color:#b4041a; }
+    .msg-warn { background:#fff7e6; border:1px solid #ffe8b3; color:#8a6d3b; }
+    .btn { padding:8px 12px; border:1px solid #e5e7eb; border-radius:8px; text-decoration:none; display:inline-block; }
+  </style>
+</head>
+<body>
+  <h1>📥 Nueva Compra (carga de stock)</h1>
+
+  {% if messages %}
+    {% for m in messages %}
+      <div class="msg {% if m.tags == 'success' %}msg-ok{% elif 'error' in m.tags %}msg-err{% else %}msg-warn{% endif %}">
+        {{ m }}
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+
+    <div class="row">
+      <input type="text" name="proveedor_nombre" class="wide" placeholder="Proveedor (escribe un nombre; si no existe se creará)" />
+    </div>
+    <div class="row">
+      <input type="text" name="observacion" class="wide" placeholder="Observación (opcional)" />
+      <a class="btn" href="{% url 'inventario:home' %}">🏠 Inicio</a>
+    </div>
+
+    <div class="row">
+      <button type="button" onclick="agregarFila()">➕ Agregar línea</button>
+      <button type="submit">💾 Guardar Compra</button>
+    </div>
+
+    <table id="tabla">
+      <thead>
+        <tr>
+          <th style="width: 45%;">Producto</th>
+          <th>Cantidad</th>
+          <th>Costo unit.</th>
+          <th>Subtotal</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="cuerpo">
+        <!-- filas por JS -->
+      </tbody>
+    </table>
+
+    <div class="total">Total: $<span id="total">0</span></div>
+  </form>
+
+  <datalist id="listaProductos">
+    {% for p in productos %}
+      <option data-id="{{ p.id }}" data-precio="{{ p.precio }}" value="{{ p.codigo }} - {{ p.nombre }}"></option>
+    {% endfor %}
+  </datalist>
+
+  <script>
+    function agregarFila() {
+      const tbody = document.getElementById('cuerpo');
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>
+          <input list="listaProductos" class="prod" placeholder="Código o nombre..." onblur="sincronizarProducto(this)" />
+          <input type="hidden" name="product_id[]" class="prod-id" />
+        </td>
+        <td><input type="number" name="cantidad[]" class="cant" min="0.001" step="0.001" value="1" oninput="recalc(this)" /></td>
+        <td><input type="number" name="costo[]" class="costo" min="0" step="0.01" value="0" oninput="recalc(this)" /></td>
+        <td>$<span class="sub">0</span></td>
+        <td><button type="button" onclick="this.closest('tr').remove(); totalizar();">🗑</button></td>
+      `;
+      tbody.appendChild(tr);
+    }
+
+    function sincronizarProducto(input) {
+      const val = (input.value || '').trim().toLowerCase();
+      const options = document.querySelectorAll('#listaProductos option');
+      let found = null;
+      options.forEach(opt => {
+        if (opt.value.toLowerCase() === val) found = opt;
+      });
+      const tr = input.closest('tr');
+      const idField = tr.querySelector('.prod-id');
+      if (found) {
+        idField.value = found.dataset.id;
+      } else {
+        idField.value = '';
+      }
+      recalc(input);
+    }
+
+    function recalc(el) {
+      const tr = el.closest('tr');
+      const cant = parseFloat(tr.querySelector('.cant').value || '0');
+      const costo = parseFloat(tr.querySelector('.costo').value || '0');
+      const sub = (cant * costo) || 0;
+      tr.querySelector('.sub').textContent = sub.toFixed(2);
+      totalizar();
+    }
+
+    function totalizar() {
+      let total = 0;
+      document.querySelectorAll('#cuerpo tr').forEach(tr => {
+        const cant = parseFloat(tr.querySelector('.cant')?.value || '0');
+        const costo = parseFloat(tr.querySelector('.costo')?.value || '0');
+        total += (cant * costo) || 0;
+      });
+      document.getElementById('total').textContent = total.toFixed(2);
+    }
+
+    // fila inicial
+    window.addEventListener('DOMContentLoaded', agregarFila);
+  </script>
+</body>
+</html>

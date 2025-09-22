@@ -1,0 +1,14 @@
+{% extends "inventario/base.html" %}
+{% block title %}Eliminar categoría{% endblock %}
+
+{% block content %}
+<div class="max-w-xl mx-auto card p-6">
+  <h1 class="text-xl font-semibold mb-2">Eliminar categoría</h1>
+  <p class="opacity-80 mb-4">¿Seguro que deseas eliminar <strong>{{ obj.nombre }}</strong>?</p>
+  <form method="post" class="flex gap-2">
+    {% csrf_token %}
+    <button class="btn btn-primary" type="submit">Sí, eliminar</button>
+    <a class="btn" href="{% url 'inventario:categoria_list' %}">Cancelar</a>
+  </form>
+</div>
+{% endblock %}

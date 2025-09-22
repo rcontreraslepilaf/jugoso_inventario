@@ -1,0 +1,58 @@
+{% extends "inventario/base.html" %}
+{% block title %}Detalle de venta{% endblock %}
+
+{% block content %}
+<style>
+  .tbl { width: 100%; border-collapse: collapse; }
+  .tbl th, .tbl td { padding: .9rem 1rem; border-bottom: 1px solid rgba(255,255,255,.08); }
+  .tbl th { text-align: left; opacity: .9; font-weight: 600; }
+  .tbl td.num { text-align: right; }
+  .card { border-radius: 1rem; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.06); }
+  .card-h { padding: 1rem 1.25rem; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,.06); }
+  .card-b { padding: 1.25rem; }
+</style>
+
+<div class="card">
+  <div class="card-h">
+    <div style="font-weight:700;">Venta #{{ venta.id }}</div>
+    <div style="display:flex; gap:.6rem;">
+      <a class="btn btn-secondary" href="{% url 'inventario:ventas_list' %}">Volver</a>
+      <a class="btn btn-primary" href="{% url 'inventario:pos_venta' %}">Nueva venta</a>
+    </div>
+  </div>
+
+  <div class="card-b">
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:.6rem; margin-bottom:1rem;">
+      <div><b>Fecha:</b> {% if fecha %}{{ fecha|date:"d \\d\\e F \\d\\e Y \\a \\l\\a\\s H:i" }}{% else %}—{% endif %}</div>
+      <div><b>N°:</b> {{ venta.id }}</div>
+    </div>
+
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th>Producto</th>
+          <th style="width:12%; text-align:center;">Cantidad</th>
+          <th style="width:18%;" class="num">Precio</th>
+          <th style="width:18%;" class="num">Subtotal</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for l in lineas %}
+          <tr>
+            <td>{{ l.producto }}</td>
+            <td style="text-align:center;">{{ l.cantidad }}</td>
+            <td class="num">${{ l.precio|floatformat:"0" }}</td>
+            <td class="num">${{ l.subtotal|floatformat:"0" }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="4">Sin líneas.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div style="display:flex; justify-content:flex-end; margin-top:1rem;">
+      <div style="font-size:1.4rem;"><b>Total:</b> ${{ total|floatformat:"0" }}</div>
+    </div>
+  </div>
+</div>
+{% endblock %}

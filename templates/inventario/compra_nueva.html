@@ -1,0 +1,120 @@
+{% extends "inventario/base.html" %}
+{% block title %}Nueva compra (cargar stock){% endblock %}
+
+{% block content %}
+<div class="grid lg:grid-cols-3 gap-6">
+  <div class="lg:col-span-2">
+    <div class="card p-6">
+      <div class="flex items-center justify-between">
+        <h1 class="text-xl font-semibold">📥 Nueva compra</h1>
+        <a class="btn" href="{% url 'inventario:home' %}">🏠 Inicio</a>
+      </div>
+
+      <form method="post" class="mt-4" id="compraForm">
+        {% csrf_token %}
+
+        <div class="grid sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block mb-1 text-sm">Proveedor (opcional)</label>
+            <input type="text" class="inp" name="proveedor_nombre" placeholder="Nombre del proveedor…">
+          </div>
+          <div>
+            <label class="block mb-1 text-sm">Observación</label>
+            <input type="text" class="inp" name="observacion" placeholder="Ej: Compra semanal, factura #123…">
+          </div>
+        </div>
+
+        <!-- Tabla líneas -->
+        <div class="overflow-x-auto mt-4">
+          <table class="table" id="tablaCompra">
+            <thead>
+              <tr>
+                <th style="width:45%;">Producto</th>
+                <th>Cantidad</th>
+                <th>Costo</th>
+                <th>Subtotal</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="cuerpoCompra"></tbody>
+          </table>
+        </div>
+
+        <div class="flex flex-wrap gap-2 mt-4">
+          <button type="button" class="btn" onclick="agregarFilaCompra()">➕ Línea</button>
+          <button type="button" class="btn" onclick="limpiarLineasCompra()">🧹 Limpiar</button>
+          <button type="submit" class="btn btn-primary">💾 Guardar Compra</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="lg:col-span-1">
+    <div class="card p-6">
+      <h2 class="text-lg font-semibold">Totales</h2>
+      <div class="mt-3 text-3xl font-extrabold tabular-nums">
+        $<span id="totalCompra">0</span>
+      </div>
+      <p class="text-xs opacity-80 mt-1">El stock se incrementa al registrar la compra.</p>
+    </div>
+  </div>
+</div>
+
+<datalist id="listaProductosCompra">
+  {% for p in productos %}
+    <option
+      data-id="{{ p.id }}"
+      data-costo="{{ p.precio }}"
+      value="{{ p.codigo }} - {{ p.nombre }}"></option>
+  {% endfor %}
+</datalist>
+
+<script>
+  function agregarFilaCompra(opt=null){
+    const tb = document.getElementById('cuerpoCompra');
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>
+        <input list="listaProductosCompra" class="inp prod" placeholder="CÓDIGO - NOMBRE" onblur="syncProdCompra(this)">
+        <input type="hidden" name="product_id[]" class="prod-id">
+      </td>
+      <td><input class="inp cant" type="number" min="0.001" step="0.001" name="cantidad[]" value="1" oninput="recalcCompra(this)" style="max-width:8rem"></td>
+      <td><input class="inp costo" type="number" min="0" step="0.01" name="costo[]" value="0" oninput="recalcCompra(this)" style="max-width:10rem"></td>
+      <td>$<span class="sub">0</span></td>
+      <td><button type="button" class="text-red-500 hover:underline" onclick="this.closest('tr').remove(); totalizarCompra();">🗑</button></td>
+    `;
+    tb.appendChild(tr);
+    const input = tr.querySelector('.prod');
+    if(opt){ input.value = opt.value; syncProdCompra(input, true); tr.querySelector('.cant').focus(); }
+    else{ input.focus(); }
+  }
+  function syncProdCompra(input, preferir=false){
+    const v = (input.value||'').trim().toLowerCase();
+    const opts = document.querySelectorAll('#listaProductosCompra option');
+    let found=null; opts.forEach(o=>{ if(o.value.toLowerCase()===v) found=o; });
+    const tr = input.closest('tr');
+    const idF = tr.querySelector('.prod-id');
+    const costoF = tr.querySelector('.costo');
+    if(found){ idF.value=found.dataset.id; if(preferir || Number(costoF.value)<=0){ costoF.value=found.dataset.costo||0; } }
+    else{ idF.value=''; }
+    recalcCompra(input);
+  }
+  function recalcCompra(el){
+    const tr = el.closest('tr');
+    const c = parseFloat(tr.querySelector('.cant').value||'0');
+    const co = parseFloat(tr.querySelector('.costo').value||'0');
+    tr.querySelector('.sub').textContent = (c*co).toFixed(2);
+    totalizarCompra();
+  }
+  function totalizarCompra(){
+    let t=0; document.querySelectorAll('#cuerpoCompra tr').forEach(tr=>{
+      const c = parseFloat(tr.querySelector('.cant')?.value||'0');
+      const co = parseFloat(tr.querySelector('.costo')?.value||'0');
+      t += (c*co)||0;
+    });
+    document.getElementById('totalCompra').textContent = t.toFixed(2);
+  }
+  function limpiarLineasCompra(){ document.getElementById('cuerpoCompra').innerHTML=''; totalizarCompra(); agregarFilaCompra(); }
+  window.addEventListener('DOMContentLoaded', ()=>agregarFilaCompra());
+</script>
+{% endblock %}

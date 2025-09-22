@@ -1,0 +1,72 @@
+{% extends "inventario/base.html" %}
+{% block title %}Proveedores{% endblock %}
+
+{% block content %}
+<div class="card p-6">
+  <div class="flex items-center justify-between">
+    <h1 class="text-xl font-semibold">🚚 Proveedores</h1>
+    <div class="flex gap-2">
+      <a class="btn" href="{% url 'inventario:home' %}">🏠 Inicio</a>
+      <a class="btn btn-primary" href="{% url 'inventario:proveedor_crear' %}">➕ Nuevo</a>
+    </div>
+  </div>
+
+  <form method="get" class="mt-4 flex gap-2">
+    <input class="inp" type="text" name="q" value="{{ q }}" placeholder="Buscar por nombre, RUT, teléfono o email…">
+    <button class="btn" type="submit">Buscar</button>
+    <a class="btn" href="{% url 'inventario:proveedor_list' %}">Limpiar</a>
+  </form>
+
+  <div class="overflow-x-auto mt-4">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>RUT</th>
+          <th>Teléfono</th>
+          <th>Email</th>
+          <th style="width: 160px;">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in proveedores %}
+          <tr>
+            <td>{{ p.nombre }}</td>
+            <td>{{ p.rut|default:"—" }}</td>
+            <td>{{ p.telefono|default:"—" }}</td>
+            <td>{{ p.email|default:"—" }}</td>
+            <td class="whitespace-nowrap">
+              <a class="text-blue-500 hover:underline mr-2" href="{% url 'inventario:proveedor_editar' p.id %}">Editar</a>
+              <a class="text-red-500 hover:underline" href="{% url 'inventario:proveedor_eliminar' p.id %}">Eliminar</a>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5" class="text-center text-sm opacity-75 py-6">No hay proveedores.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if page_obj %}
+    <div class="flex items-center justify-between mt-4 text-sm" aria-label="Paginación">
+      <div>Mostrando página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</div>
+      <div class="flex gap-2">
+        {% if page_obj.has_previous %}
+          <a class="btn" href="?q={{ q }}&page=1">« Primera</a>
+          <a class="btn" href="?q={{ q }}&page={{ page_obj.previous_page_number }}">‹ Anterior</a>
+        {% else %}
+          <span class="btn btn-ghost">« Primera</span>
+          <span class="btn btn-ghost">‹ Anterior</span>
+        {% endif %}
+        {% if page_obj.has_next %}
+          <a class="btn" href="?q={{ q }}&page={{ page_obj.next_page_number }}">Siguiente ›</a>
+          <a class="btn" href="?q={{ q }}&page={{ page_obj.paginator.num_pages }}">Última »</a>
+        {% else %}
+          <span class="btn btn-ghost">Siguiente ›</span>
+          <span class="btn btn-ghost">Última »</span>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,85 @@
+{% extends "inventario/base.html" %}
+{% block title %}{{ titulo|default:"Producto" }}{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-h">
+    <div class="card-t">
+      <span class="i i-box"></span> {{ titulo|default:"Producto" }}
+    </div>
+    <a href="{% url 'inventario:productos_list' %}" class="btn btn-secondary">
+      <span class="i i-home"></span> Inicio
+    </a>
+  </div>
+
+  <form method="post" novalidate>
+    {% csrf_token %}
+
+    <div class="grid sm:grid-cols-2 gap-4">
+      <div>
+        <label class="block mb-1 text-sm">Código</label>
+        {{ form.codigo }}
+        {% if form.codigo.errors %}
+          <div class="text-red-500 text-sm mt-1">{{ form.codigo.errors.0 }}</div>
+        {% endif %}
+      </div>
+
+      <div>
+        <label class="block mb-1 text-sm">Nombre</label>
+        {{ form.nombre }}
+        {% if form.nombre.errors %}
+          <div class="text-red-500 text-sm mt-1">{{ form.nombre.errors.0 }}</div>
+        {% endif %}
+      </div>
+
+      <div>
+        <label class="block mb-1 text-sm">Categoría</label>
+        {{ form.categoria }}
+        {% if form.categoria.errors %}
+          <div class="text-red-500 text-sm mt-1">{{ form.categoria.errors.0 }}</div>
+        {% endif %}
+      </div>
+
+      <div>
+        <label class="block mb-1 text-sm">Precio</label>
+        {{ form.precio }}
+        {% if form.precio.errors %}
+          <div class="text-red-500 text-sm mt-1">{{ form.precio.errors.0 }}</div>
+        {% endif %}
+      </div>
+
+      <div>
+        <label class="block mb-1 text-sm">Stock</label>
+        {{ form.stock }}
+        {% if form.stock.errors %}
+          <div class="text-red-500 text-sm mt-1">{{ form.stock.errors.0 }}</div>
+        {% endif %}
+      </div>
+
+      <div>
+        <label class="block mb-1 text-sm">Stock mínimo</label>
+        {{ form.stock_minimo }}
+        {% if form.stock_minimo.errors %}
+          <div class="text-red-500 text-sm mt-1">{{ form.stock_minimo.errors.0 }}</div>
+        {% endif %}
+      </div>
+
+      <div class="sm:col-span-2 flex items-center gap-3 mt-2">
+        {{ form.activo }} <span>Activo</span>
+        {% if form.activo.errors %}
+          <div class="text-red-500 text-sm mt-1">{{ form.activo.errors.0 }}</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="mt-6 flex gap-3">
+      <button type="submit" class="btn btn-primary">
+        <span class="i i-save"></span> Guardar
+      </button>
+      <a href="{% url 'inventario:productos_list' %}" class="btn btn-secondary">
+        Cancelar
+      </a>
+    </div>
+  </form>
+</div>
+{% endblock %}

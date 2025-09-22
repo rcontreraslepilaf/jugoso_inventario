@@ -1,0 +1,179 @@
+{% extends "inventario/base.html" %}
+{% block title %}POS - Punto de Venta{% endblock %}
+
+{% block content %}
+<style>
+  /* Tabla con divisiones visibles en modo oscuro */
+  .tbl { width: 100%; border-collapse: collapse; }
+  .tbl th, .tbl td { padding: .9rem 1rem; border-bottom: 1px solid rgba(255,255,255,.08); }
+  .tbl th { text-align: left; opacity: .9; font-weight: 600; }
+  .tbl td.num { text-align: right; }
+  .muted { opacity: .75; }
+  .btn-sm { padding: .45rem .75rem; border-radius: .6rem; }
+  .btn-soft { background: rgba(255,255,255,.08); }
+  .pill { padding: .35rem .6rem; border-radius: 999px; }
+  .input { width: 100%; padding: .8rem 1rem; border-radius: .8rem; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.06); color: #fff; }
+  .select { width: 100%; padding: .8rem 1rem; border-radius: .8rem; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.06); color: #fff; }
+  .card { border-radius: 1rem; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.06); }
+  .card-h { padding: 1rem 1.25rem; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,.06); }
+  .card-b { padding: 1.25rem; }
+  .grid2 { display: grid; grid-template-columns: 1fr 380px; gap: 1.25rem; }
+  @media (max-width: 1100px) { .grid2 { grid-template-columns: 1fr; } }
+</style>
+
+<div class="grid2">
+  <!-- IZQUIERDA: Formulario -->
+  <div class="card">
+    <div class="card-h">
+      <div class="pill btn-soft">Punto de Venta (POS)</div>
+      <a class="btn btn-secondary" href="{% url 'inventario:home' %}"><span class="i i-home"></span> Inicio</a>
+    </div>
+
+    <div class="card-b">
+      <form method="post" id="posForm">
+        {% csrf_token %}
+
+        <!-- Buscador/selector y botón agregar -->
+        <div style="display:flex; gap:.6rem; align-items:center; margin-bottom:1rem;">
+          <select id="finder" class="select">
+            {% for p in productos %}
+              <option value="{{ p.id }}" data-precio="{{ p.precio }}">{{ p.codigo }} - {{ p.nombre }}</option>
+            {% endfor %}
+          </select>
+          <button type="button" id="btnAdd" class="btn btn-primary btn-sm">+ Agregar</button>
+          <button type="button" id="btnClear" class="btn btn-secondary btn-sm">Limpiar</button>
+        </div>
+
+        <!-- Tabla de líneas -->
+        <table class="tbl" id="tblLineas">
+          <thead>
+            <tr>
+              <th style="width:45%;">Producto</th>
+              <th style="width:12%;">Cantidad</th>
+              <th style="width:18%;">Precio</th>
+              <th style="width:18%;">Subtotal</th>
+              <th style="width:7%; text-align:center;">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="bodyLineas">
+            <!-- filas dinámicas -->
+          </tbody>
+        </table>
+
+        <div style="display:flex; gap:.6rem; margin-top:1.25rem;">
+          <button type="submit" class="btn btn-primary">Guardar Venta</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- DERECHA: Totales/ayuda -->
+  <div class="card">
+    <div class="card-h">Totales</div>
+    <div class="card-b">
+      <div style="font-size:1.15rem; margin-bottom:.25rem;">Total</div>
+      <div id="boxTotal" style="font-size:1.6rem; font-weight:700;">$0</div>
+
+      <div style="margin-top:1rem;" class="muted">
+        <ul style="list-style:disc; padding-left:1.25rem; line-height:1.7;">
+          <li>Escribe o selecciona un producto y presiona <b>“+ Agregar”</b>.</li>
+          <li>Edita cantidad o precio; el subtotal y el total se actualizan automáticamente.</li>
+          <li>Usa el botón <b>🗑</b> para eliminar una línea.</li>
+          <li>El stock se descuenta al guardar.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Mapa de productos (por si lo quieres usar más tarde)
+  const PRODUCTS = {
+    {% for p in productos %}
+      {{ p.id }}: { label: "{{ p.codigo|escapejs }} - {{ p.nombre|escapejs }}", precio: "{{ p.precio }}" },
+    {% endfor %}
+  };
+
+  const body   = document.getElementById('bodyLineas');
+  const totalB = document.getElementById('boxTotal');
+  const finder = document.getElementById('finder');
+
+  document.getElementById('btnAdd').addEventListener('click', () => {
+    const pid = parseInt(finder.value);
+    if (!pid) return;
+    const opt  = finder.options[finder.selectedIndex];
+    const base = Number((opt.dataset.precio || '').toString().replace(',', '.')) || Number(PRODUCTS[pid]?.precio) || 0;
+    const label = opt.textContent;
+    addLine(pid, label, base);
+  });
+
+  document.getElementById('btnClear').addEventListener('click', () => {
+    body.innerHTML = '';
+    updateTotal();
+  });
+
+  function addLine(productId, label, basePrice) {
+    const tr = document.createElement('tr');
+    tr.dataset.base = String(basePrice); // guardamos precio base por si hay que rellenarlo
+    tr.innerHTML = `
+      <td>
+        <input type="hidden" name="product_id[]" value="${productId}">
+        <div>${label}</div>
+      </td>
+      <td>
+        <input type="number" min="1" step="1" name="cantidad[]" value="1" class="input inp-cnt">
+      </td>
+      <td>
+        <input type="number" min="0" step="1" name="precio[]" value="${basePrice}" class="input inp-prc">
+      </td>
+      <td class="num"><span class="subtotal">$0</span></td>
+      <td style="text-align:center;">
+        <button type="button" class="btn btn-danger btn-sm btn-del" title="Eliminar">🗑</button>
+      </td>
+    `;
+    body.appendChild(tr);
+    recalcRow(tr);
+
+    const cnt = tr.querySelector('.inp-cnt');
+    const prc = tr.querySelector('.inp-prc');
+
+    cnt.addEventListener('input', () => recalcRow(tr));
+    prc.addEventListener('input', () => recalcRow(tr));
+
+    tr.querySelector('.btn-del').addEventListener('click', () => {
+      tr.remove();
+      updateTotal();
+    });
+  }
+
+  function recalcRow(tr) {
+    const cntIn = tr.querySelector('.inp-cnt');
+    const prcIn = tr.querySelector('.inp-prc');
+
+    // Si el precio está vacío, lo rellenamos con el base guardado
+    if (prcIn.value === '' || isNaN(parseFloat(prcIn.value))) {
+      prcIn.value = tr.dataset.base || '0';
+    }
+
+    const c = parseFloat(cntIn.value || 0);
+    const p = parseFloat(prcIn.value || 0);
+    const s = c * p;
+    tr.querySelector('.subtotal').textContent = money(s);
+    updateTotal();
+  }
+
+  function updateTotal() {
+    let t = 0;
+    body.querySelectorAll('tr').forEach(tr => {
+      const c = parseFloat(tr.querySelector('.inp-cnt').value || 0);
+      const p = parseFloat(tr.querySelector('.inp-prc').value || 0);
+      t += c * p;
+    });
+    totalB.textContent = money(t);
+  }
+
+  function money(n) {
+    return '$' + (Math.round((n || 0))).toLocaleString('es-CL');
+  }
+</script>
+{% endblock %}

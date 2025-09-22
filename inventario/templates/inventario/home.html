@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Inicio | Jugoso Inventario</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 24px; }
+    h1 { margin-bottom: 8px; }
+    p { color:#444; }
+    ul { margin-top: 16px; padding-left: 16px; }
+    a { text-decoration: none; }
+    .card { border:1px solid #e5e7eb; border-radius:12px; padding:16px; max-width:680px; }
+    .link { display:block; padding:10px 12px; border:1px solid #e5e7eb; border-radius:8px; margin-top:8px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Jugoso Inventario</h1>
+    <p>Elige una sección:</p>
+    <ul>
+      <li><a class="link" href="{% url 'inventario:productos_list' %}">📦 Productos (catálogo y CRUD)</a></li>
+      <li><a class="link" href="{% url 'inventario:compra_nueva' %}">📥 Cargar stock (Compra)</a></li>
+      <li><a class="link" href="{% url 'inventario:pos_venta' %}">🧾 Punto de Venta (POS)</a></li>
+      <li><a class="link" href="{% url 'inventario:reporte_stock_bajo' %}">📉 Reporte: Stock bajo</a></li>
+      <li><a class="link" href="/admin/">🔐 Panel Admin</a></li>
+    </ul>
+  </div>
+</body>
+</html>

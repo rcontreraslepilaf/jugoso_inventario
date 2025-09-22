@@ -1,23 +1,16 @@
-{% extends "inventario/base.html" %}
-{% block title %}Reporte de stock bajo{% endblock %}
-
-{% block content %}
-<div class="card p-6">
-  <div class="flex items-center justify-between">
-    <h1 class="text-xl font-semibold">📉 Reporte: Stock bajo</h1>
-    <a class="btn" href="{% url 'inventario:home' %}">🏠 Inicio</a>
-  </div>
-
-  <div class="overflow-x-auto mt-4">
+{% if productos %}
+  <div class="overflow-x-auto">
     <table class="table">
       <thead>
         <tr>
           <th>Categoría</th>
           <th>Código</th>
           <th>Producto</th>
+          <th>Precio</th>
           <th>Stock</th>
           <th>Mínimo</th>
           <th>Estado</th>
+          <th>Acciones</th>
         </tr>
       </thead>
       <tbody>
@@ -26,6 +19,7 @@
             <td>{{ p.categoria.nombre }}</td>
             <td>{{ p.codigo }}</td>
             <td>{{ p.nombre }}</td>
+            <td>${{ p.precio }}</td>
             <td>{{ p.stock }}</td>
             <td>{{ p.stock_minimo }}</td>
             <td>
@@ -35,12 +29,15 @@
                 <span class="badge badge-ok">OK</span>
               {% endif %}
             </td>
+            <td class="whitespace-nowrap">
+              <a class="text-blue-600 hover:underline mr-2" href="{% url 'inventario:producto_editar' p.id %}">Editar</a>
+              <a class="text-red-600 hover:underline" href="{% url 'inventario:producto_eliminar' p.id %}">Eliminar</a>
+            </td>
           </tr>
-        {% empty %}
-          <tr><td colspan="6" class="text-center text-sm opacity-75 py-6">No hay productos con stock bajo 🎉</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
-</div>
-{% endblock %}
+{% else %}
+  <p class="text-slate-600">No hay productos para mostrar.</p>
+{% endif %}

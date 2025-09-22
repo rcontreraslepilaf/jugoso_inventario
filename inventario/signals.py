@@ -1,99 +1,102 @@
 from decimal import Decimal
-from django.db import transaction
-from django.db.models.signals import pre_save, post_save, post_delete
+from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
-from django.core.exceptions import ValidationError
-from django.utils import timezone
+from django.apps import apps
 
-from .models import (
-    Producto, Compra, DetalleCompra,
-    Venta, DetalleVenta, MovimientoStock
-)
+# Intentamos cargar modelos de forma segura (por nombre)
+Producto = apps.get_model('inventario', 'Producto')
+DetalleCompra = apps.get_model('inventario', 'DetalleCompra')
+DetalleVenta = apps.get_model('inventario', 'DetalleVenta')
 
-def _ajustar_stock(producto: Producto, delta: Decimal, referencia: str, motivo: str = ''):
+# MovimientoStock es opcional: si existe, lo usamos; si no, seguimos sin registrar movimiento
+MovimientoStock = None
+try:
+    MovimientoStock = apps.get_model('inventario', 'MovimientoStock')
+except LookupError:
+    MovimientoStock = None
+
+
+def _registrar_movimiento(producto, tipo, cantidad, referencia=None, nota=''):
     """
-    Ajusta el stock del producto y registra el movimiento (kardex).
-    delta > 0 => Entrada, delta < 0 => Salida
+    Crea un MovimientoStock si el modelo existe. 'tipo' puede ser 'COMPRA', 'VENTA', 'AJUSTE'.
+    'referencia' puede ser el objeto Compra/Venta/Detalle involucrado.
     """
-    # Evitar stock negativo
-    if delta < 0 and (producto.stock or 0) + delta < 0:
-        raise ValidationError(
-            f"Stock insuficiente para {producto}. Intento de salida {abs(delta)}, stock actual {producto.stock}."
-        )
-
-    # Ajuste
-    producto.stock = (producto.stock or 0) + delta
-    producto.save(update_fields=['stock'])
-
-    # Movimiento
-    MovimientoStock.objects.create(
-        producto=producto,
-        tipo=MovimientoStock.ENTRADA if delta > 0 else MovimientoStock.SALIDA,
-        cantidad=abs(delta),
-        motivo=motivo,
-        fecha=timezone.now(),
-        referencia=referencia,
-    )
-
-def _get_old_cantidad(instance, default=Decimal('0')):
-    if not instance.pk:
-        return default
+    if not MovimientoStock:
+        return
     try:
-        old = type(instance).objects.get(pk=instance.pk)
-        return old.cantidad
-    except type(instance).DoesNotExist:
-        return default
+        MovimientoStock.objects.create(
+            producto=producto,
+            tipo=tipo,
+            cantidad=cantidad,
+            referencia=str(referencia) if referencia else '',
+            nota=nota or ''
+        )
+    except Exception:
+        # No interrumpas el flujo si falla el log
+        pass
 
-# Validación: no vender sin stock (solo sobre el delta adicional)
-@receiver(pre_save, sender=DetalleVenta)
-def validar_stock_en_venta(sender, instance: DetalleVenta, **kwargs):
-    new_qty = instance.cantidad or Decimal('0')
-    old_qty = _get_old_cantidad(instance)
-    delta_salida = new_qty - old_qty  # extra que saldrá ahora
-    if delta_salida <= 0:
+
+# =========================
+# COMPRAS: suman stock
+# =========================
+@receiver(post_save, sender=DetalleCompra)
+def detalle_compra_guardado(sender, instance, created, **kwargs):
+    """
+    Al crear un DetalleCompra, aumenta el stock del producto en 'cantidad'.
+    Si se actualiza, no hacemos nada (para simplicidad). 
+    """
+    if not created:
         return
     prod = instance.producto
-    if (prod.stock or 0) < delta_salida:
-        raise ValidationError(
-            f"Stock insuficiente para {prod}. Stock actual: {prod.stock}, requerido: {delta_salida}."
-        )
+    cantidad = Decimal(instance.cantidad or 0)
+    if cantidad > 0:
+        prod.stock = (prod.stock or Decimal('0')) + cantidad
+        prod.save(update_fields=['stock'])
+        _registrar_movimiento(prod, 'COMPRA', cantidad, referencia=instance, nota='Ingreso por compra')
 
-# Compra: aplicar entradas
-@receiver(post_save, sender=DetalleCompra)
-def aplicar_entrada_compra(sender, instance: DetalleCompra, created, **kwargs):
-    with transaction.atomic():
-        new_qty = instance.cantidad or Decimal('0')
-        old_qty = _get_old_cantidad(instance) if not created else Decimal('0')
-        delta = new_qty - old_qty
-        if delta != 0:
-            ref = f"Compra#{instance.compra_id}"
-            _ajustar_stock(instance.producto, delta, referencia=ref, motivo='Ingreso por compra')
 
-# Compra: revertir entradas al borrar detalle
 @receiver(post_delete, sender=DetalleCompra)
-def revertir_entrada_compra(sender, instance: DetalleCompra, **kwargs):
-    with transaction.atomic():
-        qty = instance.cantidad or Decimal('0')
-        if qty > 0:
-            ref = f"Compra#{instance.compra_id}"
-            _ajustar_stock(instance.producto, -qty, referencia=ref, motivo='Reverso compra')
+def detalle_compra_eliminado(sender, instance, **kwargs):
+    """
+    Si se elimina un DetalleCompra, revertimos el stock.
+    """
+    prod = instance.producto
+    cantidad = Decimal(instance.cantidad or 0)
+    if cantidad > 0:
+        prod.stock = (prod.stock or Decimal('0')) - cantidad
+        if prod.stock < 0:
+            prod.stock = Decimal('0')
+        prod.save(update_fields=['stock'])
+        _registrar_movimiento(prod, 'AJUSTE', -cantidad, referencia=instance, nota='Reverso por eliminación de detalle de compra')
 
-# Venta: aplicar salidas
+
+# =========================
+# VENTAS: restan stock
+# =========================
 @receiver(post_save, sender=DetalleVenta)
-def aplicar_salida_venta(sender, instance: DetalleVenta, created, **kwargs):
-    with transaction.atomic():
-        new_qty = instance.cantidad or Decimal('0')
-        old_qty = _get_old_cantidad(instance) if not created else Decimal('0')
-        delta = new_qty - old_qty
-        if delta != 0:
-            ref = f"Venta#{instance.venta_id}"
-            _ajustar_stock(instance.producto, -delta, referencia=ref, motivo='Egreso por venta')
+def detalle_venta_guardado(sender, instance, created, **kwargs):
+    """
+    Al crear un DetalleVenta, disminuye el stock del producto en 'cantidad'.
+    """
+    if not created:
+        return
+    prod = instance.producto
+    cantidad = Decimal(instance.cantidad or 0)
+    if cantidad > 0:
+        nuevo = (prod.stock or Decimal('0')) - cantidad
+        prod.stock = nuevo if nuevo >= 0 else Decimal('0')
+        prod.save(update_fields=['stock'])
+        _registrar_movimiento(prod, 'VENTA', -cantidad, referencia=instance, nota='Salida por venta')
 
-# Venta: revertir salidas al borrar detalle
+
 @receiver(post_delete, sender=DetalleVenta)
-def revertir_salida_venta(sender, instance: DetalleVenta, **kwargs):
-    with transaction.atomic():
-        qty = instance.cantidad or Decimal('0')
-        if qty > 0:
-            ref = f"Venta#{instance.venta_id}"
-            _ajustar_stock(instance.producto, qty, referencia=ref, motivo='Reverso venta')
+def detalle_venta_eliminado(sender, instance, **kwargs):
+    """
+    Si se elimina un DetalleVenta, devolvemos el stock.
+    """
+    prod = instance.producto
+    cantidad = Decimal(instance.cantidad or 0)
+    if cantidad > 0:
+        prod.stock = (prod.stock or Decimal('0')) + cantidad
+        prod.save(update_fields=['stock'])
+        _registrar_movimiento(prod, 'AJUSTE', cantidad, referencia=instance, nota='Reverso por eliminación de detalle de venta')
