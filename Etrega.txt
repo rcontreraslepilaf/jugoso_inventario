@@ -1,0 +1,3 @@
+Repositorio: https://github.com/usuario/jugoso_inventario
+Rama: main
+Tag de entrega: v1.0-entrega
