@@ -1,23 +1,23 @@
-# Python
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-*.pdb
-
-# Virtual env
+@"
+# Entornos virtuales
 venv/
-.env
-*.env
+.venv/
+.venv312/
 
-# Django / SQLite
+# Config local
+.env
+
+# Compilados Python
+__pycache__/
+*.pyc
+
+# Archivos de BD locales
 db.sqlite3
-media/
+
+# Static build (si usas collectstatic)
 staticfiles/
 
-# VS Code
+# VSCode/IDE
 .vscode/
-
-# OS
-.DS_Store
-Thumbs.db
+.idea/
+"@ | Out-File -Encoding utf8 .gitignore
