@@ -3,7 +3,7 @@
 
 {% block content %}
 <style>
-  /* Tabla con divisiones visibles en modo oscuro */
+  /* ---- estilos base (dark-friendly) ---- */
   .tbl { width: 100%; border-collapse: collapse; }
   .tbl th, .tbl td { padding: .9rem 1rem; border-bottom: 1px solid rgba(255,255,255,.08); }
   .tbl th { text-align: left; opacity: .9; font-weight: 600; }
@@ -12,34 +12,48 @@
   .btn-sm { padding: .45rem .75rem; border-radius: .6rem; }
   .btn-soft { background: rgba(255,255,255,.08); }
   .pill { padding: .35rem .6rem; border-radius: 999px; }
-  .input { width: 100%; padding: .8rem 1rem; border-radius: .8rem; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.06); color: #fff; }
-  .select { width: 100%; padding: .8rem 1rem; border-radius: .8rem; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.06); color: #fff; }
+
+  .input { width: 100%; padding: .8rem 1rem; border-radius: .8rem;
+           background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.06); color: #fff; }
   .card { border-radius: 1rem; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.06); }
   .card-h { padding: 1rem 1.25rem; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,.06); }
   .card-b { padding: 1.25rem; }
   .grid2 { display: grid; grid-template-columns: 1fr 380px; gap: 1.25rem; }
   @media (max-width: 1100px) { .grid2 { grid-template-columns: 1fr; } }
+
+  /* ---- Autocomplete ---- */
+  .ac-wrap { position: relative; width: 100%; }
+  .ac-input { width: 100%; }
+  .ac-list { position: absolute; top: calc(100% + 6px); left: 0; right: 0;
+             background: rgba(15,23,42,.98); border: 1px solid rgba(255,255,255,.08);
+             border-radius: .75rem; max-height: 260px; overflow: auto; z-index: 30;
+             box-shadow: 0 14px 34px rgba(0,0,0,.35); display: none; }
+  .ac-item { padding: .6rem .85rem; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,.06); }
+  .ac-item:last-child { border-bottom: none; }
+  .ac-item.is-active, .ac-item:hover { background: rgba(255,255,255,.08); }
+  .kbd { font-size: .75rem; opacity:.75; border:1px solid rgba(255,255,255,.2); padding:.05rem .35rem; border-radius:.4rem; }
 </style>
 
 <div class="grid2">
-  <!-- IZQUIERDA: Formulario -->
+  <!-- IZQUIERDA -->
   <div class="card">
     <div class="card-h">
       <div class="pill btn-soft">Punto de Venta (POS)</div>
-      <a class="btn btn-secondary" href="{% url 'inventario:home' %}"><span class="i i-home"></span> Inicio</a>
+      <a class="btn btn-secondary" href="{% url 'inventario:home' %}">Inicio</a>
     </div>
 
     <div class="card-b">
       <form method="post" id="posForm">
         {% csrf_token %}
 
-        <!-- Buscador/selector y botón agregar -->
-        <div style="display:flex; gap:.6rem; align-items:center; margin-bottom:1rem;">
-          <select id="finder" class="select">
-            {% for p in productos %}
-              <option value="{{ p.id }}" data-precio="{{ p.precio }}">{{ p.codigo }} - {{ p.nombre }}</option>
-            {% endfor %}
-          </select>
+        <!-- Buscador con autocompletado + acciones -->
+        <div style="display:flex; gap:.6rem; align-items:flex-start; margin-bottom:1rem;">
+          <div class="ac-wrap">
+            <input id="finderInput" type="text" class="input ac-input"
+                   placeholder="Busca por código o nombre (p. ej. 'coca', '001'…)"
+                   autocomplete="off" />
+            <div id="acList" class="ac-list" role="listbox" aria-label="Sugerencias"></div>
+          </div>
           <button type="button" id="btnAdd" class="btn btn-primary btn-sm">+ Agregar</button>
           <button type="button" id="btnClear" class="btn btn-secondary btn-sm">Limpiar</button>
         </div>
@@ -55,19 +69,20 @@
               <th style="width:7%; text-align:center;">Acciones</th>
             </tr>
           </thead>
-          <tbody id="bodyLineas">
-            <!-- filas dinámicas -->
-          </tbody>
+          <tbody id="bodyLineas"></tbody>
         </table>
 
         <div style="display:flex; gap:.6rem; margin-top:1.25rem;">
           <button type="submit" class="btn btn-primary">Guardar Venta</button>
         </div>
       </form>
+      <div class="muted" style="margin-top:.75rem;">
+        <span class="kbd">↑/↓</span> navega · <span class="kbd">Enter</span> selecciona · <span class="kbd">Esc</span> cierra
+      </div>
     </div>
   </div>
 
-  <!-- DERECHA: Totales/ayuda -->
+  <!-- DERECHA -->
   <div class="card">
     <div class="card-h">Totales</div>
     <div class="card-b">
@@ -87,34 +102,103 @@
 </div>
 
 <script>
-  // Mapa de productos (por si lo quieres usar más tarde)
-  const PRODUCTS = {
+  /* ======= Datos de productos (para el autocomplete y la tabla) ======= */
+  const ITEMS = [
     {% for p in productos %}
-      {{ p.id }}: { label: "{{ p.codigo|escapejs }} - {{ p.nombre|escapejs }}", precio: "{{ p.precio }}" },
+      { id: {{ p.id }}, label: "{{ p.codigo|escapejs }} - {{ p.nombre|escapejs }}", codigo: "{{ p.codigo|escapejs }}", nombre: "{{ p.nombre|escapejs }}", precio: Number("{{ p.precio }}".replace(',', '.')) || 0 },
     {% endfor %}
-  };
+  ];
 
-  const body   = document.getElementById('bodyLineas');
-  const totalB = document.getElementById('boxTotal');
-  const finder = document.getElementById('finder');
+  /* ======= Autocomplete mínimo vanilla ======= */
+  const input = document.getElementById('finderInput');
+  const list  = document.getElementById('acList');
+  const body  = document.getElementById('bodyLineas');
+  const totalB= document.getElementById('boxTotal');
 
+  let idxActive = -1;    // índice resaltado
+  let visible = [];      // resultados visibles
+  let picked = null;     // último producto seleccionado
+
+  function openList() { list.style.display = visible.length ? 'block' : 'none'; }
+  function closeList() { list.style.display = 'none'; idxActive = -1; }
+
+  function renderList() {
+    list.innerHTML = '';
+    visible.forEach((it, i) => {
+      const div = document.createElement('div');
+      div.className = 'ac-item' + (i===idxActive ? ' is-active' : '');
+      div.textContent = it.label;
+      div.role = 'option';
+      div.addEventListener('mousedown', (e) => { e.preventDefault(); choose(i); });
+      list.appendChild(div);
+    });
+    openList();
+  }
+
+  function filter(q) {
+    q = (q||'').trim().toLowerCase();
+    if (!q) {
+      visible = ITEMS.slice(0, 12);
+    } else {
+      visible = ITEMS.filter(it =>
+        it.nombre.toLowerCase().includes(q) ||
+        String(it.codigo).toLowerCase().includes(q)
+      ).slice(0, 12);
+    }
+    idxActive = visible.length ? 0 : -1;
+    renderList();
+  }
+
+  function choose(i) {
+    const it = visible[i];
+    if (!it) return;
+    picked = it;
+    input.value = it.label;
+    closeList();
+  }
+
+  input.addEventListener('input', () => { picked = null; filter(input.value); });
+  input.addEventListener('focus', () => { filter(input.value); openList(); });
+  input.addEventListener('blur', () => setTimeout(closeList, 120));
+
+  input.addEventListener('keydown', (e) => {
+    if (list.style.display !== 'block') return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); if (idxActive < visible.length-1) idxActive++; renderList(); }
+    if (e.key === 'ArrowUp')   { e.preventDefault(); if (idxActive > 0) idxActive--; renderList(); }
+    if (e.key === 'Enter')     { e.preventDefault(); choose(idxActive); }
+    if (e.key === 'Escape')    { e.preventDefault(); closeList(); }
+  });
+
+  /* ======= Botones ======= */
   document.getElementById('btnAdd').addEventListener('click', () => {
-    const pid = parseInt(finder.value);
-    if (!pid) return;
-    const opt  = finder.options[finder.selectedIndex];
-    const base = Number((opt.dataset.precio || '').toString().replace(',', '.')) || Number(PRODUCTS[pid]?.precio) || 0;
-    const label = opt.textContent;
-    addLine(pid, label, base);
+    // si el usuario no presionó Enter/click, intenta coincidir por texto
+    if (!picked) {
+      const q = input.value.trim().toLowerCase();
+      picked = ITEMS.find(it =>
+        it.label.toLowerCase() === q
+      ) || ITEMS.find(it =>
+        it.nombre.toLowerCase().includes(q) || String(it.codigo).toLowerCase().includes(q)
+      );
+    }
+    if (!picked) return;
+
+    addLine(picked.id, picked.label, picked.precio);
+    picked = null;
+    input.value = '';
   });
 
   document.getElementById('btnClear').addEventListener('click', () => {
     body.innerHTML = '';
     updateTotal();
+    input.value = '';
+    picked = null;
+    closeList();
   });
 
+  /* ======= Tabla dinámica ======= */
   function addLine(productId, label, basePrice) {
     const tr = document.createElement('tr');
-    tr.dataset.base = String(basePrice); // guardamos precio base por si hay que rellenarlo
+    tr.dataset.base = String(basePrice || 0);
     tr.innerHTML = `
       <td>
         <input type="hidden" name="product_id[]" value="${productId}">
@@ -124,7 +208,7 @@
         <input type="number" min="1" step="1" name="cantidad[]" value="1" class="input inp-cnt">
       </td>
       <td>
-        <input type="number" min="0" step="1" name="precio[]" value="${basePrice}" class="input inp-prc">
+        <input type="number" min="0" step="1" name="precio[]" value="${basePrice||0}" class="input inp-prc">
       </td>
       <td class="num"><span class="subtotal">$0</span></td>
       <td style="text-align:center;">
@@ -136,25 +220,17 @@
 
     const cnt = tr.querySelector('.inp-cnt');
     const prc = tr.querySelector('.inp-prc');
-
     cnt.addEventListener('input', () => recalcRow(tr));
     prc.addEventListener('input', () => recalcRow(tr));
-
-    tr.querySelector('.btn-del').addEventListener('click', () => {
-      tr.remove();
-      updateTotal();
-    });
+    tr.querySelector('.btn-del').addEventListener('click', () => { tr.remove(); updateTotal(); });
   }
 
   function recalcRow(tr) {
     const cntIn = tr.querySelector('.inp-cnt');
     const prcIn = tr.querySelector('.inp-prc');
-
-    // Si el precio está vacío, lo rellenamos con el base guardado
     if (prcIn.value === '' || isNaN(parseFloat(prcIn.value))) {
       prcIn.value = tr.dataset.base || '0';
     }
-
     const c = parseFloat(cntIn.value || 0);
     const p = parseFloat(prcIn.value || 0);
     const s = c * p;
@@ -175,4 +251,5 @@
   function money(n) {
     return '$' + (Math.round((n || 0))).toLocaleString('es-CL');
   }
-</script> 
+</script>
+{% endblock %}

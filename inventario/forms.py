@@ -1,36 +1,44 @@
+# inventario/forms.py
 from django import forms
-from .models import Categoria, Proveedor, Producto
+from django.db.models import Max, IntegerField
+from django.db.models.functions import Cast
 
-class CategoriaForm(forms.ModelForm):
-    class Meta:
-        model = Categoria
-        fields = ["nombre", "descripcion"]
-        widgets = {
-            "nombre": forms.TextInput(attrs={"class": "inp"}),
-            "descripcion": forms.Textarea(attrs={"class": "inp", "rows": 3}),
-        }
+from .models import Producto
 
-class ProveedorForm(forms.ModelForm):
-    class Meta:
-        model = Proveedor
-        fields = ["nombre", "rut", "telefono", "email"]
-        widgets = {
-            "nombre": forms.TextInput(attrs={"class": "inp"}),
-            "rut": forms.TextInput(attrs={"class": "inp"}),
-            "telefono": forms.TextInput(attrs={"class": "inp"}),
-            "email": forms.EmailInput(attrs={"class": "inp"}),
-        }
+
+def _siguiente_codigo(pad: int = 3) -> str:
+    """
+    Busca el mayor 'codigo' numérico en Producto, le suma 1 y lo devuelve
+    con relleno a la izquierda (por defecto 3 dígitos: 001, 002, ...).
+    Si no hay productos aún, devolverá '001'.
+    """
+    max_val = (
+        Producto.objects
+        .exclude(codigo__isnull=True)
+        .exclude(codigo__exact='')
+        .annotate(cint=Cast('codigo', IntegerField()))
+        .aggregate(m=Max('cint'))['m'] or 0
+    )
+    return str(max_val + 1).zfill(pad)
+
 
 class ProductoForm(forms.ModelForm):
     class Meta:
         model = Producto
-        fields = ["codigo", "nombre", "categoria", "precio", "stock", "stock_minimo", "activo"]
+        fields = ['codigo', 'nombre', 'categoria', 'precio', 'stock', 'stock_minimo', 'activo']
         widgets = {
-            "codigo": forms.TextInput(attrs={"class": "inp"}),
-            "nombre": forms.TextInput(attrs={"class": "inp"}),
-            "categoria": forms.Select(attrs={"class": "inp"}),
-            "precio": forms.NumberInput(attrs={"class": "inp", "step": "0.01"}),
-            "stock": forms.NumberInput(attrs={"class": "inp", "step": "0.001"}),
-            "stock_minimo": forms.NumberInput(attrs={"class": "inp", "step": "0.001"}),
-            "activo": forms.CheckboxInput(attrs={"class": "chk"}),
+            # lo mostramos pero en solo lectura
+            'codigo': forms.TextInput(attrs={'readonly': 'readonly'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        """
+        Si es creación (no hay PK), proponemos el siguiente código y lo
+        dejamos en solo lectura. En edición, respetamos el existente.
+        """
+        super().__init__(*args, **kwargs)
+
+        if not self.instance.pk:
+            # Solo si el initial no trae código ya (por si la vista lo setea)
+            if not self.initial.get('codigo'):
+                self.initial['codigo'] = _siguiente_codigo()
