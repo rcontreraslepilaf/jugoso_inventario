@@ -80,6 +80,21 @@ def _get_precio_from_detalle(det):
             return getattr(det, f)
     return Decimal("0")
 
+def _siguiente_codigo():
+    """
+    Calcula el próximo código numérico correlativo con 3 dígitos (001, 002, 003...).
+    Ignora códigos no numéricos si existieran.
+    """
+    max_n = 0
+    for c in Producto.objects.values_list("codigo", flat=True):
+        try:
+            n = int(str(c).strip())
+            if n > max_n:
+                max_n = n
+        except (TypeError, ValueError):
+            continue
+    return f"{max_n + 1:03d}"
+
 
 # --------------------- vistas base ---------------------
 
@@ -182,6 +197,34 @@ class ProductoForm(forms.ModelForm):
     class Meta:
         model = Producto
         fields = ["codigo", "nombre", "categoria", "precio", "stock", "stock_minimo", "activo"]
+        widgets = {
+            "codigo": forms.TextInput(attrs={"class": "inp", "placeholder": "Se asignará automáticamente"}),
+            "nombre": forms.TextInput(attrs={"class": "inp"}),
+            "categoria": forms.Select(attrs={"class": "inp"}),
+            "precio": forms.NumberInput(attrs={"class": "inp", "step": "1", "min": "0"}),
+            "stock": forms.NumberInput(attrs={"class": "inp", "step": "1", "min": "0"}),
+            "stock_minimo": forms.NumberInput(attrs={"class": "inp", "step": "1", "min": "0"}),
+            "activo": forms.CheckboxInput(),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        creando = not getattr(self.instance, "pk", None)
+        if creando:
+            if not self.initial.get("codigo"):
+                self.initial["codigo"] = _siguiente_codigo()
+            # readonly para que se vea (y se envíe), pero no editable
+            self.fields["codigo"].widget.attrs["readonly"] = "readonly"
+            self.fields["codigo"].widget.attrs["style"] = "opacity:.85;cursor:not-allowed;"
+
+    def save(self, commit=True):
+        obj = super().save(commit=False)
+        if not getattr(obj, "pk", None):
+            if not getattr(obj, "codigo", None) or not str(obj.codigo).strip():
+                obj.codigo = _siguiente_codigo()
+        if commit:
+            obj.save()
+        return obj
 
 def productos_list(request):
     q = (request.GET.get("q") or "").strip()
@@ -308,7 +351,7 @@ def pos_venta(request):
                 precio = Decimal(precios[i] or "0")
             except (ValueError, InvalidOperation):
                 continue
-            # <--- CORREGIDO: sin coma
+            # CORREGIDO: condición sin coma
             if pid > 0 and cant > 0 and precio >= 0:
                 lineas.append((pid, cant, precio))
 

@@ -1,23 +1,32 @@
-@"
-# venv
-venv/
+# Crear/reescribir .gitignore
+@'
+# --- Python / Django ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.env
+.env.* 
+.env.local
+*.log
+
+# Virtualenvs
 .venv/
 .venv312/
+venv/
 
-# env local
-.env
-
-# python cache
-__pycache__/
-*.pyc
-
-# sqlite local
+# Django artefactos
 db.sqlite3
-
-# static compilado
+media/
 staticfiles/
+static/
 
-# IDE
+# IDEs / OS
 .vscode/
 .idea/
-"@ | Out-File -Encoding utf8 .gitignore
+.DS_Store
+Thumbs.db
+
+# Coverage / test
+.coverage
+htmlcov/
+'@ | Set-Content .gitignore -Encoding utf8
