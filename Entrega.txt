@@ -1,0 +1,4 @@
+﻿Repositorio: https://github.com/rcontreraslepilaf/jugoso_inventario
+Rama principal: main
+Tag de entrega: v1.0-entrega
+Commit: 76858f2
