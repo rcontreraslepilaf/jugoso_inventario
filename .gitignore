@@ -1,23 +1,23 @@
 @"
-# Entornos virtuales
+# venv
 venv/
 .venv/
 .venv312/
 
-# Config local
+# env local
 .env
 
-# Compilados Python
+# python cache
 __pycache__/
 *.pyc
 
-# Archivos de BD locales
+# sqlite local
 db.sqlite3
 
-# Static build (si usas collectstatic)
+# static compilado
 staticfiles/
 
-# VSCode/IDE
+# IDE
 .vscode/
 .idea/
 "@ | Out-File -Encoding utf8 .gitignore
