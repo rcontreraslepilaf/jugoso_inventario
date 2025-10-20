@@ -2,7 +2,8 @@
 {% block title %}Inicio | Jugoso Market{% endblock %}
 
 {% block content %}
-  <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+  <!-- Contenedor con clase "cards-grid" para aplicar el layout especial del dashboard -->
+  <div class="cards-grid grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
     <div class="card p-6">
       <h2 class="text-lg font-semibold mb-2">Catálogo</h2>
       <p class="text-sm text-slate-600 mb-3">Gestiona productos y categorías.</p>
@@ -21,11 +22,13 @@
       </div>
     </div>
 
-    <div class="card p-6">
+    <!-- VENTA DESTACADA -->
+    <div class="card card--venta p-6">
       <h2 class="text-lg font-semibold mb-2">Venta</h2>
       <p class="text-sm text-slate-600 mb-3">Punto de venta y alertas.</p>
       <div class="flex gap-2">
-        <a class="btn btn-primary" href="{% url 'inventario:pos_venta' %}">🧾 POS</a>
+        <!-- Botón POS destacado -->
+        <a class="btn btn-pos" href="{% url 'inventario:pos_venta' %}">🧾 POS</a>
         <a class="btn" href="{% url 'inventario:reporte_stock_bajo' %}">📉 Stock bajo</a>
       </div>
     </div>

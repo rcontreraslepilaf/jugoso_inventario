@@ -1,3 +1,4 @@
+# inventario/views.py
 from decimal import Decimal, InvalidOperation
 
 from django.shortcuts import render, get_object_or_404, redirect
@@ -7,9 +8,11 @@ from django.core.paginator import Paginator
 from django.contrib import messages
 from django import forms
 from django.apps import apps
+from django.utils import timezone
 
-from .models import Categoria, Proveedor, Producto
+from .models import Categoria, Proveedor, Producto, Cliente, MovimientoStock
 
+# Modelos que podrías no tener en algunos proyectos
 Compra = DetalleCompra = Venta = DetalleVenta = None
 try:
     Compra = apps.get_model("inventario", "Compra")
@@ -81,10 +84,7 @@ def _get_precio_from_detalle(det):
     return Decimal("0")
 
 def _siguiente_codigo():
-    """
-    Calcula el próximo código numérico correlativo con 3 dígitos (001, 002, 003...).
-    Ignora códigos no numéricos si existieran.
-    """
+    """Próximo código correlativo de 3 dígitos (001, 002...)."""
     max_n = 0
     for c in Producto.objects.values_list("codigo", flat=True):
         try:
@@ -213,7 +213,6 @@ class ProductoForm(forms.ModelForm):
         if creando:
             if not self.initial.get("codigo"):
                 self.initial["codigo"] = _siguiente_codigo()
-            # readonly para que se vea (y se envíe), pero no editable
             self.fields["codigo"].widget.attrs["readonly"] = "readonly"
             self.fields["codigo"].widget.attrs["style"] = "opacity:.85;cursor:not-allowed;"
 
@@ -318,19 +317,22 @@ def compra_nueva(request):
             for pid, cant, costo in lineas:
                 prod = Producto.objects.select_for_update().get(pk=pid)
                 _crear_detalle_compra(compra=compra, producto=prod, cantidad=cant, precio_unit=costo)
+                # Si quieres aumentar stock aquí:
+                # prod.stock = (prod.stock or 0) + cant
+                # prod.save(update_fields=["stock"])
                 total += cant * costo
 
             if _tiene_campo(Compra, "total"):
                 compra.total = total
                 compra.save(update_fields=["total"])
 
-        messages.success(request, "Compra registrada y stock actualizado.")
+        messages.success(request, "Compra registrada.")
         return redirect("inventario:home")
 
     return render(request, "inventario/compra_nueva.html", {"productos": productos})
 
 
-# --------------------- POS / Ventas ---------------------
+# --------------------- POS / Ventas (+ Deuda) ---------------------
 
 def pos_venta(request):
     productos = Producto.objects.filter(activo=True).order_by("nombre")
@@ -340,6 +342,10 @@ def pos_venta(request):
             messages.error(request, "Los modelos de Venta/DetalleVenta no están definidos.")
             return redirect("inventario:pos_venta")
 
+        accion = (request.POST.get("accion") or "guardar").strip()  # 'guardar' | 'deuda'
+        es_deuda = (accion == "deuda")
+
+        # líneas
         ids = request.POST.getlist("product_id[]")
         cants = request.POST.getlist("cantidad[]")
         precios = request.POST.getlist("precio[]")
@@ -351,7 +357,6 @@ def pos_venta(request):
                 precio = Decimal(precios[i] or "0")
             except (ValueError, InvalidOperation):
                 continue
-            # CORREGIDO: condición sin coma
             if pid > 0 and cant > 0 and precio >= 0:
                 lineas.append((pid, cant, precio))
 
@@ -359,26 +364,133 @@ def pos_venta(request):
             messages.error(request, "Agrega al menos un ítem válido.")
             return redirect("inventario:pos_venta")
 
+        # cliente para deuda
+        cli_instance = None
+        if es_deuda:
+            nombre = (request.POST.get("cliente_nombre") or "").strip()
+            if not nombre:
+                messages.error(request, "Para registrar deuda, indica el nombre del deudor.")
+                return redirect("inventario:pos_venta")
+            cli_instance, _ = Cliente.objects.get_or_create(nombre=nombre, defaults={"activo": True})
+
         with transaction.atomic():
-            venta = Venta.objects.create()
+            # crea venta con flags de deuda
+            venta_kwargs = {}
+            if _tiene_campo(Venta, "cliente"):
+                venta_kwargs["cliente"] = cli_instance
+            if _tiene_campo(Venta, "fecha"):
+                venta_kwargs["fecha"] = timezone.now()
+            if _tiene_campo(Venta, "observacion"):
+                venta_kwargs["observacion"] = (request.POST.get("observacion") or "").strip()
+            if _tiene_campo(Venta, "es_deuda"):
+                venta_kwargs["es_deuda"] = es_deuda
+            if _tiene_campo(Venta, "saldada"):
+                venta_kwargs["saldada"] = False if es_deuda else True
+
+            venta = Venta.objects.create(**venta_kwargs)
+
             total = Decimal("0")
             for pid, cant, precio in lineas:
                 prod = Producto.objects.select_for_update().get(pk=pid)
+
+                # Control stock y descuenta
                 if prod.stock is not None and prod.stock < cant:
                     messages.error(request, f"Stock insuficiente para {prod.nombre}.")
                     transaction.set_rollback(True)
                     return redirect("inventario:pos_venta")
+
                 _crear_detalle_venta(venta=venta, producto=prod, cantidad=cant, precio_unit=precio)
+
+                # Descuento de stock
+                try:
+                    prod.stock = (prod.stock or 0) - cant
+                    prod.save(update_fields=["stock"])
+                except Exception:
+                    pass
+
+                # Movimiento de stock (opcional)
+                try:
+                    MovimientoStock.objects.create(
+                        producto=prod,
+                        tipo=MovimientoStock.SALIDA,
+                        cantidad=cant,
+                        motivo="Venta a Deuda" if es_deuda else "Venta",
+                        fecha=getattr(venta, "fecha", timezone.now()),
+                        referencia=f"Venta#{venta.id}",
+                    )
+                except Exception:
+                    pass
+
                 total += cant * precio
 
             if _tiene_campo(Venta, "total"):
                 venta.total = total
                 venta.save(update_fields=["total"])
 
-        messages.success(request, "Venta registrada y stock actualizado.")
-        return redirect("inventario:ventas_list")
+        if es_deuda:
+            messages.success(request, f"Deuda registrada para {cli_instance.nombre}.")
+            return redirect("inventario:deudores_list")
+        else:
+            messages.success(request, "Venta registrada correctamente.")
+            return redirect("inventario:ventas_list")
 
     return render(request, "inventario/pos_venta.html", {"productos": productos})
+
+
+# --------------------- Deudores ---------------------
+
+def deudores_list(request):
+    if not Venta:
+        messages.error(request, "El modelo Venta no está definido.")
+        return redirect("inventario:home")
+
+    if not (_tiene_campo(Venta, "es_deuda") and _tiene_campo(Venta, "saldada")):
+        # Sin campos, no hay deudores que mostrar
+        return render(request, "inventario/deudores_list.html", {"rows": []})
+
+    clientes = (
+        Cliente.objects.filter(ventas__es_deuda=True, ventas__saldada=False)
+        .distinct()
+        .order_by("nombre")
+    )
+
+    rows = []
+    for cli in clientes:
+        ventas_cli = cli.ventas.filter(es_deuda=True, saldada=False).prefetch_related("detalles", "detalles__producto")
+        total = Decimal("0")
+        ultima = None
+        for v in ventas_cli:
+            if ultima is None or (getattr(v, "fecha", None) and v.fecha > ultima):
+                ultima = getattr(v, "fecha", ultima)
+            accessor = _get_accessor_detalleventa()
+            dets = getattr(v, accessor).all() if accessor else []
+            for d in dets:
+                total += (getattr(d, "cantidad", 0) or 0) * (_get_precio_from_detalle(d) or 0)
+        rows.append({"cliente": cli, "total": total, "ultima": ultima})
+
+    return render(request, "inventario/deudores_list.html", {"rows": rows})
+
+def deudor_detalle(request, pk):
+    if not Venta:
+        messages.error(request, "El modelo Venta no está definido.")
+        return redirect("inventario:home")
+
+    cli = get_object_or_404(Cliente, pk=pk)
+    ventas = cli.ventas.filter(es_deuda=True).order_by("-fecha").prefetch_related("detalles", "detalles__producto")
+
+    filas = []
+    for v in ventas:
+        accessor = _get_accessor_detalleventa()
+        dets = getattr(v, accessor).all() if accessor else []
+        total = Decimal("0")
+        for d in dets:
+            total += (getattr(d, "cantidad", 0) or 0) * (_get_precio_from_detalle(d) or 0)
+        filas.append({"venta": v, "total": total})
+
+    return render(request, "inventario/deudor_detalle.html", {"cliente": cli, "filas": filas})
+
+
+# --------------------- Ventas (listado/detalle) ---------------------
 
 def ventas_list(request):
     if not Venta:

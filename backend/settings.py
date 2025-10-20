@@ -1,6 +1,6 @@
 """
 Django settings for backend project.
-Configurado para DRF + JWT + roles (Administrador, Vendedor, Consultor)
+Configurado para DRF + roles (Administrador, Vendedor, Consultor)
 """
 
 from pathlib import Path
@@ -12,7 +12,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # --- SEGURIDAD ---
 SECRET_KEY = 'django-insecure-tu-clave-segura-aqui'
 DEBUG = True
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
 
 # --- APLICACIONES INSTALADAS ---
 INSTALLED_APPS = [
@@ -100,13 +100,14 @@ MEDIA_ROOT = BASE_DIR / 'media'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # ===========================================================
-# 🧩 CONFIGURACIÓN DRF + JWT
+# 🧩 CONFIGURACIÓN DRF (SIN JWT para evitar import errors)
 # ===========================================================
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.SessionAuthentication',
         'rest_framework.authentication.TokenAuthentication',
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        # Si instalas JWT, vuelve a activar esta línea:
+        # 'rest_framework_simplejwt.authentication.JWTAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticatedOrReadOnly',
@@ -122,7 +123,7 @@ REST_FRAMEWORK = {
     ],
 }
 
-# --- JWT CONFIG ---
+# --- JWT CONFIG (puede quedarse aunque no uses la clase de auth) ---
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
@@ -135,7 +136,7 @@ SIMPLE_JWT = {
 }
 
 # ===========================================================
-# 💡 OPCIONAL: CONFIGURACIÓN PARA LOGS
+# 💡 LOGS
 # ===========================================================
 LOGGING = {
     'version': 1,

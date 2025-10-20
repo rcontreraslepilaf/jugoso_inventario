@@ -74,11 +74,16 @@ class Venta(models.Model):
     fecha = models.DateTimeField(default=timezone.now)
     observacion = models.TextField(blank=True)
 
+    # --------- NUEVO: soporte a deuda ----------
+    es_deuda = models.BooleanField(default=False)   # True: venta a crédito/fiada
+    saldada = models.BooleanField(default=False)    # True: deuda pagada
+
     def total(self):
         return sum(d.subtotal() for d in self.detalles.all())
 
     def __str__(self):
-        return f"Venta #{self.id} - {self.fecha:%Y-%m-%d}"
+        tipo = "Deuda" if self.es_deuda else "Venta"
+        return f"{tipo} #{self.id} - {self.fecha:%Y-%m-%d}"
 
 
 class DetalleVenta(models.Model):

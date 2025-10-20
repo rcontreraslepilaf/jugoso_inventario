@@ -1,0 +1,69 @@
+{% extends "inventario/base.html" %}
+{% load static %}
+{% block title %}Deudores{% endblock %}
+
+{% block content %}
+<div class="card p-6">
+  <h1 class="text-xl font-semibold mb-4">Deudores</h1>
+
+  <table class="table w-full">
+    <thead>
+      <tr>
+        <th>Cliente</th>
+        <th>Total Adeudado</th>
+        <th>Fecha</th>
+        <th>Descripción</th>
+        <th class="text-right">Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if deudas and deudas|length %}
+        {% for d in deudas %}
+          <tr>
+            <td>
+              <a class="underline" href="{% url 'inventario:deudor_detalle' d.id %}">
+                {{ d.cliente__nombre }}
+              </a>
+            </td>
+            <td>${{ d.total_adeudado|default:0|floatformat:0 }}</td>
+            <td>
+              {% if d.fecha %}
+                {{ d.fecha|date:"d/m/Y H:i" }}
+              {% else %}
+                —
+              {% endif %}
+            </td>
+            <td>
+              {% if d.observacion %}
+                {{ d.observacion }}
+              {% else %}
+                —
+              {% endif %}
+            </td>
+            <td class="text-right whitespace-nowrap">
+              <form action="{% url 'inventario:deuda_pagar' d.id %}" method="post" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary btn-sm">
+                  Pagar
+                </button>
+              </form>
+              <form action="{% url 'inventario:deuda_eliminar' d.id %}" method="post" style="display:inline;" onsubmit="return confirm('¿Eliminar esta deuda? Se repondrá el stock.');">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-ghost btn-sm">
+                  Eliminar
+                </button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      {% else %}
+        <tr>
+          <td colspan="5" class="text-center text-slate-400 py-6">
+            No hay deudores con deuda pendiente.
+          </td>
+        </tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

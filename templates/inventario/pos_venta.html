@@ -32,6 +32,12 @@
   .ac-item:last-child { border-bottom: none; }
   .ac-item.is-active, .ac-item:hover { background: rgba(255,255,255,.08); }
   .kbd { font-size: .75rem; opacity:.75; border:1px solid rgba(255,255,255,.2); padding:.05rem .35rem; border-radius:.4rem; }
+
+  /* ---- fila de acciones (Guardar/Deuda) ---- */
+  .actions-row { display:flex; flex-wrap:wrap; gap:.6rem; margin-top:1.25rem; align-items:center; }
+  .deuda-form { display:flex; gap:.6rem; align-items:center; flex-wrap: wrap; }
+  .deuda-form .input { max-width: 240px; }
+  .deuda-form button { margin-left:.1rem; }
 </style>
 
 <div class="grid2">
@@ -43,6 +49,7 @@
     </div>
 
     <div class="card-b">
+      <!-- FORM PRINCIPAL: Guardar Venta normal -->
       <form method="post" id="posForm">
         {% csrf_token %}
 
@@ -50,7 +57,7 @@
         <div style="display:flex; gap:.6rem; align-items:flex-start; margin-bottom:1rem;">
           <div class="ac-wrap">
             <input id="finderInput" type="text" class="input ac-input"
-                   placeholder="Busca por código o nombre (p. ej. 'coca', '001'…)"
+                   placeholder="Busca por código o nombre (p. ej. 'coca', '001’…)"
                    autocomplete="off" />
             <div id="acList" class="ac-list" role="listbox" aria-label="Sugerencias"></div>
           </div>
@@ -72,10 +79,22 @@
           <tbody id="bodyLineas"></tbody>
         </table>
 
-        <div style="display:flex; gap:.6rem; margin-top:1.25rem;">
+        <!-- ACCIONES: Guardar / Deuda -->
+        <div class="actions-row">
+          <!-- Guardar Venta normal -->
           <button type="submit" class="btn btn-primary">Guardar Venta</button>
         </div>
       </form>
+
+      <!-- FORM DE DEUDA: copia las líneas actuales y envía a deuda_guardar -->
+      <form id="deudaForm" method="post" action="{% url 'inventario:deuda_guardar' %}" class="deuda-form" style="margin-top:.6rem;">
+        {% csrf_token %}
+        <input type="text" name="deudor_nombre" class="input" placeholder="Nombre del deudor" required>
+        <!-- NUEVO: descripción opcional -->
+        <input type="text" name="descripcion" class="input" placeholder="Descripción (opcional)">
+        <button type="button" id="btnDeuda" class="btn btn-soft">Deuda</button>
+      </form>
+
       <div class="muted" style="margin-top:.75rem;">
         <span class="kbd">↑/↓</span> navega · <span class="kbd">Enter</span> selecciona · <span class="kbd">Esc</span> cierra
       </div>
@@ -251,5 +270,47 @@
   function money(n) {
     return '$' + (Math.round((n || 0))).toLocaleString('es-CL');
   }
+
+  /* ======= Enviar como DEUDA ======= */
+  const deudaForm = document.getElementById('deudaForm');
+  document.getElementById('btnDeuda').addEventListener('click', () => {
+    // Validaciones básicas
+    const deudorInput = deudaForm.querySelector('input[name="deudor_nombre"]');
+    if (!deudorInput.value.trim()) {
+      deudorInput.focus();
+      return;
+    }
+    const rows = body.querySelectorAll('tr');
+    if (!rows.length) {
+      alert('No hay productos en la venta.');
+      return;
+    }
+
+    // Limpia inputs ocultos previos
+    deudaForm.querySelectorAll('input[name="product_id[]"], input[name="cantidad[]"], input[name="precio[]"]').forEach(el => el.remove());
+
+    // Copia las líneas actuales al form de deuda
+    rows.forEach(tr => {
+      const id = tr.querySelector('input[name="product_id[]"]').value;
+      const cnt = tr.querySelector('input[name="cantidad[]"]').value || '0';
+      const prc = tr.querySelector('input[name="precio[]"]').value || tr.dataset.base || '0';
+
+      const hid1 = document.createElement('input');
+      hid1.type = 'hidden'; hid1.name = 'product_id[]'; hid1.value = id;
+
+      const hid2 = document.createElement('input');
+      hid2.type = 'hidden'; hid2.name = 'cantidad[]'; hid2.value = cnt;
+
+      const hid3 = document.createElement('input');
+      hid3.type = 'hidden'; hid3.name = 'precio[]'; hid3.value = prc;
+
+      deudaForm.appendChild(hid1);
+      deudaForm.appendChild(hid2);
+      deudaForm.appendChild(hid3);
+    });
+
+    // Enviar
+    deudaForm.submit();
+  });
 </script>
 {% endblock %}

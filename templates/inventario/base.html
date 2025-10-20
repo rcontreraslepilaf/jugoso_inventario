@@ -48,6 +48,7 @@
       padding:.55rem .9rem; border:1px solid var(--panel-border);
       border-radius:9999px; background:var(--panel); color:var(--text);
       text-decoration:none; transition:box-shadow .15s, transform .02s, background .15s, border-color .15s;
+      line-height: 1;
     }
     .btn:hover{ background:rgba(255,255,255,.75); }
     html.dark .btn:hover{ background:#162033; }
@@ -58,6 +59,28 @@
     }
     .btn-primary:hover{ background:var(--brand-600); }
     .btn-primary:active{ background:var(--brand-700); }
+
+    /* === POS DESTACADO (botón principal de negocio) === */
+    .btn-pos{
+      background: linear-gradient(145deg, #ff8a2b, #ff7a00) !important;
+      color:#fff !important;
+      border-color: rgba(255,138,43,.45) !important;
+      font-weight: 800;
+      font-size: 1.05rem;
+      padding: .85rem 1.35rem;
+      border-radius: 14px;
+      box-shadow: 0 0 22px rgba(255,138,43,.55), 0 6px 18px rgba(0,0,0,.20);
+      transition: transform .16s ease, box-shadow .16s ease, filter .16s ease;
+    }
+    .btn-pos:hover{
+      transform: translateY(-1px) scale(1.035);
+      box-shadow: 0 0 28px rgba(255,138,43,.75), 0 10px 22px rgba(0,0,0,.28);
+      filter: brightness(1.03);
+    }
+    .btn-pos:active{
+      transform: translateY(0);
+      filter: brightness(.98);
+    }
 
     .btn-ghost{
       border-color:transparent; background:transparent;
@@ -133,13 +156,39 @@
     }
     button:hover, input[type="submit"]:hover { background: var(--brand-600); }
     button:active, input[type="submit"]:active { background: var(--brand-700); }
+
+    /* ====== Estilos globales para el Dashboard ====== */
+    @media (min-width: 1024px) {
+      .cards-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 1.25rem;
+      }
+      .cards-grid .card--venta {
+        grid-column: span 2 / span 2;
+      }
+    }
+    .card--venta{
+      position: relative;
+      background: linear-gradient(145deg, #1a2230, #111827);
+      border: 1px solid rgba(255,153,51,.25);
+      box-shadow: 0 10px 30px rgba(255,153,51,.18);
+    }
+    .card--venta::after{
+      content: "Prioridad";
+      position: absolute;
+      top: 10px; right: 12px;
+      font-size: .75rem; letter-spacing:.02em;
+      color: #ffedd5; background: #ff8a2b;
+      border-radius: 999px; padding: .25rem .6rem;
+      opacity: .95;
+    }
   </style>
 
   <script>
     // ====== Preferencia inicial (por defecto: OSCURO) ======
     (function() {
       const stored = localStorage.getItem('theme');
-      // Si NO hay preferencia guardada -> usa oscuro por defecto
       const useDark = stored ? (stored === 'dark') : true;
       document.documentElement.classList.toggle('dark', useDark);
     })();
@@ -195,7 +244,13 @@
         <a class="btn btn-ghost" href="{% url 'inventario:proveedor_list' %}">Proveedores</a>
         <a class="btn btn-ghost" href="{% url 'inventario:productos_list' %}">Productos</a>
         <a class="btn" href="{% url 'inventario:compra_nueva' %}">Compra</a>
-        <a class="btn btn-primary" href="{% url 'inventario:pos_venta' %}">POS</a>
+
+        <!-- POS destacado -->
+        <a class="btn btn-pos" href="{% url 'inventario:pos_venta' %}">POS</a>
+
+        <!-- Deudores (nuevo acceso) -->
+        <a class="btn btn-ghost" href="{% url 'inventario:deudores_list' %}">Deudores</a>
+
         <a class="btn btn-ghost" href="/admin/">Admin</a>
 
         <!-- Toggle tema -->

@@ -7,6 +7,10 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from django.db import models as dj_models
 from rest_framework.routers import DefaultRouter
 
+# 👇 imports necesarios para la previsualización del POS
+from django.shortcuts import render
+from django.db.models import Q
+
 from .models import Categoria, Producto, Proveedor  # si Proveedor no existe, no pasa nada porque no lo usamos aquí
 
 # Movimiento puede llamarse MovimientoStock o Movimiento
@@ -107,3 +111,41 @@ def get_api_router() -> DefaultRouter:
     if BodegaModel is not None:
         router.register(r'bodegas', BodegaViewSet, basename='bodega')
     return router
+
+
+# ============================================================
+# ==========  ENDPOINT PARA PREVISUALIZAR EN EL POS  =========
+# ============================================================
+def producto_info(request):
+    """
+    Retorna un fragmento HTML (partial) con la previsualización
+    de un producto para POS: cantidad, precio y subtotal ANTES de agregar.
+
+    Busca por código EXACTO (codigo__iexact) o nombre (icontains).
+    Si tu modelo usa otro campo de precio (p. ej. 'precio_venta'), lo detecta.
+    """
+    q = (request.GET.get("q") or "").strip()
+    p = None
+    precio_base = 0
+
+    if q:
+        p = (
+            Producto.objects.filter(Q(codigo__iexact=q) | Q(nombre__icontains=q))
+            .order_by("id")
+            .first()
+        )
+        if p:
+            # Detecta el campo de precio existente
+            if hasattr(p, "precio") and p.precio is not None:
+                precio_base = p.precio
+            elif hasattr(p, "precio_venta") and p.precio_venta is not None:
+                precio_base = p.precio_venta
+            else:
+                precio_base = 0
+
+    # Render del partial con el producto (p) y el precio_base decidido
+    return render(
+        request,
+        "inventario/partials/producto_preview.html",
+        {"p": p, "precio_base": precio_base},
+    )

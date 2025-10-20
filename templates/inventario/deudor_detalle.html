@@ -1,0 +1,61 @@
+{% extends "inventario/base.html" %}
+{% block title %}Deudor: {{ cliente.nombre }}{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+  <div class="card p-6">
+    <div class="flex items-center justify-between">
+      <h1 class="text-xl font-semibold">Deudor: {{ cliente.nombre }}</h1>
+      <a class="btn" href="{% url 'inventario:deudores_list' %}">← Volver</a>
+    </div>
+  </div>
+
+  <div class="card p-6">
+    <h2 class="text-lg font-semibold mb-3">Historial de deudas</h2>
+
+    <table class="table w-full">
+      <thead>
+        <tr>
+          <th style="width: 20%;">Fecha</th>
+          <th style="width: 15%;">Estado</th>
+          <th style="width: 15%;">Total</th>
+          <th>Detalle</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if historial %}
+          {% for v in historial %}
+            <tr>
+              <td>{{ v.fecha|date:"Y-m-d H:i" }}</td>
+              <td>
+                {% if v.saldada %}
+                  <span class="badge badge-ok">Saldada</span>
+                {% else %}
+                  <span class="badge badge-low">Pendiente</span>
+                {% endif %}
+              </td>
+              <td>${{ v.total|floatformat:0 }}</td>
+              <td>
+                <ul class="list-disc pl-5">
+                  {% for l in v.lineas %}
+                  <li>
+                    {{ l.producto }} — x{{ l.cantidad }} a ${{ l.precio|floatformat:0 }}
+                    = ${{ l.subtotal|floatformat:0 }}
+                  </li>
+                  {% endfor %}
+                </ul>
+              </td>
+            </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td colspan="4" class="text-center text-slate-400 py-6">
+              Sin registros de deuda para este cliente.
+            </td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
